@@ -1,0 +1,34 @@
+syntax = "proto3";
+package myMsg;
+
+// 命令id
+enum Command{
+    Login = 0;      // 登入
+    LoginR = 1;     // 登入回應
+    Bet = 3;      
+    BetR = 3;
+    Ping = 9;       // ping
+    Pong = 10;      // pong    
+}
+
+// message是固定的，可以隨意指定，符合規範即可
+
+// ping
+message CtoS_HeartBeat {
+}
+
+// pong
+message StoC_HeartBeat {    
+}
+
+// client登入
+message CtoS_Login {
+    int32 UserId = 1;
+    string UserPwd = 2;
+    string UserName = 2;
+}
+
+// server回應登入
+message StoC_Login {
+    int32 Code = 1;
+}
