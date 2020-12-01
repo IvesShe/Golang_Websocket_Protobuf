@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"html/template"
@@ -15,9 +17,14 @@ import (
 )
 
 // 定義flag參數，這邊會返回一個相應的指針
-var addr = flag.String("addr", "localhost:8080", "http service address")
+var addr = flag.String("addr", "localhost:1351", "http service address")
 
-var upgrader = websocket.Upgrader{} // use default options
+var upgrader = websocket.Upgrader{
+	// 解決跨域問題
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
 
 func echo(w http.ResponseWriter, r *http.Request) {
 	// 開啟websocket服務
@@ -26,7 +33,8 @@ func echo(w http.ResponseWriter, r *http.Request) {
 		logger.Debug("upgrade:", err)
 		return
 	}
-	logger.Debug("服務器啟動，監聽端口8080中......")
+	logger.Debug("服務器啟動，監聽端口1351中......")
+	buf := make([]byte, 100)
 
 	// 預先關閉，此行在離開echo時會執行
 	defer ws.Close()
@@ -40,25 +48,41 @@ func echo(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		logger.Debug("recv: %s", message)
+		logger.Debug("recv: %v", message)
+
+		//var pkgId uint16
+		//pkgId = uint16(message[0:2])
+		//binary.BigEndian.PutUint16(buf[0:2], message[0:2])
+		var rpkgId = binary.BigEndian.Uint16(message[0:2])
+
 		// 如果是ping
-		if string(message) == "ping" {
+		if int16(rpkgId) == int16(myMsg.Command_Ping) {
 			// 就回pong
 			mes := "pong"
 			logger.Debug("心跳")
-			data := myMsg.StoCLogin{
-				Balance: 168,
+
+			// 傳輸的資料前面，要加上2bytes的id碼，id碼參考proto檔的command enum
+			// 處理消息ID
+			var pkgId uint16
+			pkgId = uint16(myMsg.Command_Pong)
+			binary.BigEndian.PutUint16(buf[0:2], pkgId)
+			data := myMsg.StoCHeartBeat{
+				//Balance: 123456,
+				//Code:    200,
 			}
-			// 將讀到的資料送出
+
 			// 將資料編碼成 Protocol Buffer 格式（請注意是傳入 Pointer）。
 			dataBuffer, _ := proto.Marshal(&data)
-			//err = ws.WriteMessage(mt, []byte(mes))
-			err = ws.WriteMessage(mt, dataBuffer)
+
+			// 將消息ID與DATA整合，一起送出
+			pkgData := [][]byte{buf[:2], dataBuffer}
+			pkgDatas := bytes.Join(pkgData, []byte{})
+			err = ws.WriteMessage(mt, pkgDatas)
 			logger.Debug("write:", string(mes))
 		} else {
 			// 將讀到的資料送出
 			err = ws.WriteMessage(mt, message)
-			logger.Debug("write:", string(message))
+			logger.Debug("write: %v", message)
 		}
 		// 將讀到的資料送出
 		if err != nil {
@@ -102,10 +126,10 @@ func main() {
 	fmt.Println(login.Balance, " ")
 
 	// 調用flag.Parse()解析命令行參數到定義的flag
-	flag.Parse()
+	//flag.Parse()
 
 	// SetFlags(flag int)可以用來自定義log的輸出格式
-	log.SetFlags(0)
+	//log.SetFlags(0)
 
 	// 處理/echo的路由
 	http.HandleFunc("/echo", echo)

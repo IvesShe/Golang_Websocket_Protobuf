@@ -33,3 +33,5 @@ message StoCLogin {
     int32 Code = 1;
     int32 Balance = 2;
 }
+
+
